@@ -1,0 +1,4 @@
+# Environment variables and sensitive files
+*.env
+pyproject.toml
+*.pdf
