@@ -1,0 +1,22 @@
+[tool.poetry]
+name = "tenders"
+version = "0.1.0"
+description = ""
+authors = ["lcombita09 <combita09@gmail.com>"]
+readme = "README.md"
+
+[tool.poetry.dependencies]
+python = "^3.11"
+langchain-openai = "^0.2.14"
+langchain-community = "^0.3.13"
+langchain-text-splitters = "^0.3.4"
+loguru = "^0.7.3"
+pymupdf = "^1.25.1"
+python-dotenv = "^1.0.1"
+faiss-cpu = "^1.9.0.post1"
+pandas = "^2.2.3"
+
+
+[build-system]
+requires = ["poetry-core"]
+build-backend = "poetry.core.masonry.api"
