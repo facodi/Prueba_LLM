@@ -73,6 +73,12 @@ vector_store = PineconeVectorStore.from_texts(
     index_name=index_name
 )
 
+# Cargamos la base vectorial en Pinecone     - OK 
+vstore = PineconeVectorStore.from_existing_index(index_name=index_name, embedding=embedding)
+
+# ------------------------------------------------------------------------------------------------------
+# PRUEBA DE FUNCIONAMIENTO
+# ------------------------------------------------------------------------------------------------------
 
 query = '¿Cual es el objeto del expediente?'
 
@@ -80,8 +86,6 @@ message = [
     # SystemMessage(content = 'You are a helpull asistant, Your name is Wall-E'),
     HumanMessage(content = query)
 ]
-
-vstore = PineconeVectorStore.from_existing_index(index_name=index_name, embedding=embedding)
 
 llm = ChatOpenAI(model='gpt-3.5-turbo')
 
@@ -92,7 +96,7 @@ chain = load_qa_chain(
     chain_type = 'stuff'
 )
 
-response = chain.run(input_documents = docs , question = query)
+response = chain.invoke(input_documents = docs , question = query)
 
 print(response)
 
