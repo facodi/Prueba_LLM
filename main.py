@@ -15,8 +15,12 @@ from langchain_core.prompts import PromptTemplate, ChatPromptTemplate
 from langchain_core.messages import HumanMessage, SystemMessage
 
 # Cargando la variable de entorno           - OK
-load_dotenv(find_dotenv(), override=True) 
-
+def load_enviorment():
+    '''
+    Load the APIs
+    '''
+    load_dotenv(find_dotenv(), override=True)
+    print('Enviorment loaded!')
 
 # Cargando el documento                     - OK
 def load_document(filename, loader = 'pdfminer'):
@@ -77,9 +81,6 @@ def load_pinecone(index_name):
             ) 
         )
         print('Index created!')
-        while not pc.describe_index(index_name).status['ready']:
-            time.sleep(1)
-            print('Index ready!')
 
     else:
         index = pc.Index(index_name)
@@ -88,8 +89,18 @@ def load_pinecone(index_name):
             index.delete(delete_all=True)
             print('Content deleted!')
 
+    while not pc.describe_index(index_name).status['ready']:
+            time.sleep(1)
+    print('Index ready!')
+
 # Creamos y cargamos la base vectorial en Pinecone      - OK
 def load_vector_store(chunks, index_name):
+
+    # load_pinecone(index_name)     # Probar despues
+    pc = Pinecone()
+    index = pc.Index(index_name)
+    index.delete(delete_all=True)
+    print('Content deleted.')
 
     vector_store = PineconeVectorStore.from_documents(
         documents= chunks,
@@ -97,40 +108,66 @@ def load_vector_store(chunks, index_name):
         index_name=index_name
     )
 
-    vector_store = PineconeVectorStore.from_existing_index(index_name=index_name, embedding=get_embedding_model())
+    while not index.describe_index_stats().total_vector_count > 0:
+            time.sleep(1)
+    # vector_store = PineconeVectorStore.from_existing_index(index_name=index_name, embedding=get_embedding_model())
     print('Vector store loaded!')
     
     return vector_store
 
+def getting_context(vector_store, question, search_type = 'similarity'):
+    retriever = vector_store.as_retriever(search_type = search_type)
+    docs_context = retriever.invoke(question)
+    return docs_context
 
-# PRUEBA DE FUNCIONAMIENTO
-index_name = 'tenders-index'
-document = load_document('document_1.pdf', loader = 'pypdf')
-chunks = text_into_chunks(document)
-load_pinecone(index_name)
-vector_store = load_vector_store(chunks, index_name)
+def generating_prompt(docs_context, question):
+    # prompt template
+    PROMPT_TEMPLATE = '''
+    Eres un asistente para preguntar y responder. Usa los contextos para responder la pregunta. Si no sabes que responder, solo di que no sabes. No te inventes las respuestas.
 
-retriever = vector_store.as_retriever(search_type = 'similarity')
-time.sleep(10)
-relevant_chunks = retriever.invoke('¿Cual es el objeto del expediente?')
+    {context}
+    -----
+    Answer the question based on the above context: {question}
+    '''
 
-# prompt template
-PROMPT_TEMPLATE = '''
-Eres un asistente para preguntar y responder. Usa los contextos para responder la pregunta. Si no sabes que responder, solo di que no sabes. No te inventes las respuestas.
+    content_text = "\n\n---\n\n".join([chunk.page_content for chunk in docs_context])
 
-{context}
------
-Answer the question based on the above context: {question}
-'''
-content_text = "\n\n---\n\n".join([chunk.page_content for chunk in relevant_chunks])
+    # Create prompt
+    prompt_template = PromptTemplate.from_template(PROMPT_TEMPLATE)
+    prompt = prompt_template.format(context=content_text, question= question)
 
-# Create prompt
-prompt_template = PromptTemplate.from_template(PROMPT_TEMPLATE)
-prompt = prompt_template.format(context=content_text, question='¿Cual es el objeto del expediente?')
+    return prompt
 
-llm = ChatOpenAI(model='gpt-3.5-turbo')
+def load_model():
+    model = ChatOpenAI(model='gpt-3.5-turbo')
+    
+    return model
 
-response = llm.invoke(prompt)
+def tenders_contracts(filename, question , loader= 'pdfminer'):
+    '''
+    Principal function
+    '''
+    print('Loading the APIs...')
+    load_enviorment()
+    print('Loading the document...')
+    document = load_document(filename=filename, loader= loader)
+    print('Splitting text into chunks...')
+    chunks = text_into_chunks(document)
+    print('Creating the vectorstore...')
+    vector_store = load_vector_store(chunks, index_name)
+    print('Obtaining retriever...')
+    docs_context = getting_context(vector_store, question)
+    prompt = generating_prompt(docs_context= docs_context, question= question)
+    model = load_model()
+    response = model.invoke(prompt)
 
-print(response.content)
+    return response.content
 
+
+if __name__ == '__main__':
+    index_name = 'tenders-index'
+    filename = 'document_1.pdf'
+    question = '¿Cuál es el objeto del expediente?'
+    resultado = tenders_contracts(filename=filename, question=question, loader = 'pypdf')
+    print(resultado)
+    print('TERMINADO')
